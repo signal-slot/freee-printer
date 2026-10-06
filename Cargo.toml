@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "cli"]
+# The firmware crate targets xtensa-esp32s3-espidf and carries its own
+# toolchain; it is built separately from firmware/.
+exclude = ["firmware"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/signal-slot/freee-printer"

@@ -1,0 +1,24 @@
+[package]
+name = "freee-printer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Virtual printer that uploads print jobs to the freee file box"
+
+[dependencies]
+freee-printer-core = { path = "../crates/core" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+ctrlc = "3"
+directories = "6"
+env_logger = "0.11"
+log = "0.4"
+mdns-sd = "0.21"
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12", "logging"] }
+uuid = "1"
+webpki-roots = "1"
+open = "5.4.4"
+
+[target.'cfg(unix)'.dependencies]
+gethostname = "1"
