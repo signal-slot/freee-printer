@@ -1,52 +1,75 @@
 # freee-printer
 
-印刷すると freee 会計のファイルボックスにアップロードされる仮想プリンター。
+印刷すると freee 会計のファイルボックスにアップロードされる仮想プリンターです。
+どのアプリからでも、印刷ダイアログで「freee」を選ぶだけで、その文書がファイルボックスに入ります。
 
-IPP プリンター（IPP Everywhere）として振る舞い、受け取った文書を `POST /api/1/receipts` で
-アップロードする。印刷する側の OS にドライバーは要らない。
+![Chrome の印刷プレビューで送信先に freee を選んでいる](docs/images/print-dialog.png)
 
-```text
-印刷する端末 ──IPP──▶ freee-printer ──HTTPS──▶ freee ファイルボックス
-```
+- Linux、macOS、Windows で動きます。ドライバーは要りません。
+- 印刷ジョブの名前（たいていは文書のタイトル）が、ファイル名とメモになります。
+- PDF、JPEG、PNG はそのまま、ラスター（iOS や一部の Windows 環境が送る形式）は PDF に変換してアップロードします。
+- アップロードできなかった文書は捨てずに保存され、あとから送り直せます。
 
-| 受け取る形式 | アップロードされる形式 |
-| --- | --- |
-| PDF | そのまま |
-| JPEG / PNG | そのまま |
-| PWG Raster / Apple Raster (URF) | 1 ページ 1 画像の PDF に変換（300 dpi） |
+## 使い始めるまで
 
-ファイル名とメモ欄には印刷ジョブ名（多くの場合は文書のタイトル）が入る。
+全部で 10 分くらいです。freee 会計のアカウントで、アプリ登録ができる権限（管理者）が必要です。
 
-## 使い方
+### 1. freee-printer を入れる
 
-### 1. freee にアプリを登録する
+[Releases](https://github.com/signal-slot/freee-printer/releases) から、お使いの OS のファイルをダウンロードします。
 
-freee-printer は freee アプリストアでは配布していない。使う人が自分用のアプリを登録し、
-その Client ID と Client Secret でログインする。
-`~/.config/freee/credentials` に別のツールが書いた `CLIENT_ID`、`CLIENT_SECRET`、
-`ACCESS_TOKEN`、`REFRESH_TOKEN`、`COMPANY_ID` があれば、そのまま使うので登録もログインも要らない。
+| OS | ファイル | 入れ方 |
+| --- | --- | --- |
+| Linux (x86_64) | `freee-printer-linux-x86_64` | `chmod +x` して好きな場所に置く（`~/.local/bin` など） |
+| Linux (Raspberry Pi など arm64) | `freee-printer-linux-aarch64` | 同上 |
+| macOS (Apple Silicon) | `freee-printer-macos-arm64` | `chmod +x` して好きな場所に置く。初回起動で「開発元を検証できない」と出たら、`xattr -d com.apple.quarantine <ファイル>` を実行するか、Finder で右クリックして「開く」 |
+| Windows | `freee-printer-windows-x86_64.exe` | 好きな場所に置く。SmartScreen の警告が出たら「詳細情報」→「実行」 |
 
-[freee アプリ管理](https://app.secure.freee.co.jp/developers/applications)でアプリを作る。
+バイナリには署名をしていないので、macOS と Windows では初回に警告が出ます。
 
-- アプリタイプ: プライベート
-- コールバック URL: `urn:ietf:wg:oauth:2.0:oob`（既定値のまま）
-- 権限: 会計の「ファイルボックス」の更新と「事業所」の参照
-
-### 2. 実行する
+Rust が入っていれば、ソースから入れることもできます。
 
 ```sh
-cargo run
+cargo install --git https://github.com/signal-slot/freee-printer freee-printer
 ```
 
-プリンターが起動し、`http://localhost:7933/` に状態と設定のページが開く。
-初回はセットアップのページが開くので、画面の案内に沿って進める。
+### 2. 起動する
 
-1. freee アプリ管理へのリンクと設定値が表示されるので、登録して Client ID と Client Secret を入力する。
-2. 「freee を開いて許可する」で freee を開いて許可し、表示された認可コードを貼り付ける。
-3. 事業所が複数あれば選ぶ。
+ターミナルで実行します（Windows なら PowerShell で `.\freee-printer.exe`）。
 
-ターミナル側では、Linux と macOS なら CUPS にプリンター「freee」を登録するか聞いてくる
-（`lpadmin` に管理者権限が要るときは `sudo` を使う）。Windows では UAC の確認のあと、管理者権限で `Add-Printer` を実行する。
+```sh
+freee-printer
+```
+
+プリンターが立ち上がり、ブラウザで `http://localhost:7933/` のセットアップ画面が開きます。
+開かなければ、手でその URL を開いてください。
+
+### 3. freee にアプリを登録する
+
+セットアップ画面の案内に沿って、[freee アプリ管理](https://app.secure.freee.co.jp/developers/applications)で自分用のアプリを作ります。
+
+![セットアップ画面。アプリ管理での設定値と、Client ID と Client Secret の入力欄](docs/images/setup-1.png)
+
+1. 「新規追加」でアプリを作ります。名前は何でも構いません（例: freee-printer）。
+2. アプリタイプは「プライベート」にします。
+3. コールバック URL は既定値（`urn:ietf:wg:oauth:2.0:oob`）のままにします。
+4. 権限は、会計の「ファイルボックス」を更新、「事業所」を参照、の 2 つを付けます。
+5. 作成後に表示される Client ID と Client Secret を、セットアップ画面に貼り付けて「保存して次へ」。
+
+自分でアプリを登録する必要があるのは、freee の OAuth が Client Secret を必須にしているためです。
+配布するプログラムに Secret を同梱すると公開したのと同じになるので、使う人ごとに登録してもらっています。
+
+### 4. freee で許可する
+
+![freee で許可して認可コードを貼り付ける画面](docs/images/setup-2.png)
+
+「freee を開いて許可する」を押すと freee の許可画面が開きます。
+許可すると認可コードが表示されるので、コピーしてセットアップ画面に貼り付け、「ログイン」を押します。
+事業所が複数あれば、どこにアップロードするかを選びます。
+
+### 5. プリンターとして登録する
+
+ターミナルに戻ると、このマシンの印刷ダイアログにプリンターを追加するか聞いてきます。
 
 ```text
 プリンター「freee ファイルボックス」が動いています。状態と設定: http://localhost:7933/
@@ -54,70 +77,109 @@ cargo run
 追加しました。印刷ダイアログで「freee」を選ぶと、ファイルボックスにアップロードされます。
 ```
 
-あとはどのアプリからでも「freee」を選んで印刷すればよい。
-2 回目以降の `cargo run` は、すぐにプリンターとして動く。
+Enter を押せば登録されます。
+Linux では管理者権限が要ることがあり、そのときは `sudo` のパスワードを聞かれます。
+Windows では「変更を許可しますか」の確認（UAC）が出るので「はい」を選びます。
 
-### 3. Web ページ
+### 6. 印刷してみる
 
-`http://localhost:7933/` で見られる。
+何かのアプリで印刷ダイアログを開き、「freee」を選んで印刷します。
+数秒で freee のファイルボックスに入ります。
+`http://localhost:7933/` の状態ページで、ジョブごとの結果を確認できます。
 
-- **状態**: アップロード先の事業所、ジョブの一覧と失敗理由、アップロードできなかった文書の送り直しと削除。
-- **セットアップ**: freee へのログイン。
-- **設定**: ログイン時の自動起動、印刷ダイアログに出る名前、書類の種類（領収書 / 請求書 / その他 / OCR 任せ）、事業所の切り替え。
+![状態ページ。ジョブの一覧と、アップロードできなかった文書の送り直し](docs/images/status.png)
 
-セットアップと設定、送り直しは、このマシン（localhost）からの接続にだけ応じる。LAN に
-開けたときに他の端末から見えるのは状態だけで、ログインや設定の変更はできない。
+### 7. 自動で起動するようにする
 
-### 4. 自動で起動させる
+毎回ターミナルで起動するのは面倒なので、設定ページ（`http://localhost:7933/settings`）で「ログイン時に自動で起動する」を入れて「適用」を押します。
+今動いているプロセスは終了し、以後はログインのたびに裏で起動します。
 
-設定ページの「ログイン時に自動で起動する」を入れる。`cargo run` で動かしている最中に入れると、
-そのプロセスは終了してサービスが引き継ぐ。コマンドなら `freee-printer service install`。
+![設定ページ。自動起動、プリンター名、書類の種類、事業所](docs/images/settings.png)
 
 | OS | 仕組み |
 | --- | --- |
-| Linux | systemd のユーザーサービス `~/.config/systemd/user/freee-printer.service`。ログは `journalctl --user -u freee-printer -f`。ログインしていない間も動かすなら `loginctl enable-linger` |
-| macOS | launchd のエージェント `~/Library/LaunchAgents/io.signal-slot.freee-printer.plist`。ログは `~/Library/Logs/freee-printer.log` |
-| Windows | レジストリの Run キー。PowerShell 経由でウィンドウを出さずに起動する |
+| Linux | systemd のユーザーサービス。ログは `journalctl --user -u freee-printer -f`。ログインしていない間も動かすなら `loginctl enable-linger` |
+| macOS | launchd のエージェント。ログは `~/Library/Logs/freee-printer.log` |
+| Windows | レジストリの Run キー。ウィンドウは出ません |
 
-登録するのは実行したバイナリそのものなので、`cargo install --path cli` で入れた `freee-printer` から行うこと。
+登録されるのは「今動かしているファイル」なので、あとでバイナリを移動したら、設定ページで自動起動を切って入れ直してください。
 
-## コマンド
+## 困ったとき
 
-| コマンド | 内容 |
-| --- | --- |
-| `freee-printer` | 未ログインならログインし、そのままプリンターとして動かす |
-| `freee-printer login` | freee へのログインをターミナルで行う（Web ページを使わない場合） |
-| `freee-printer company [ID]` | アップロード先の事業所を選び直す（ログインし直さずに） |
-| `freee-printer serve` | プリンターとして動かす（`--listen`、`--advertise` を指定するとき） |
-| `freee-printer install` | この OS の印刷システムにプリンター「freee」を登録する（`serve` を動かした状態で） |
-| `freee-printer service install` | ログイン時に自動起動するよう登録する（systemd / launchd / Run キー）。`service uninstall` で外す |
-| `freee-printer uninstall` | 登録を外す |
-| `freee-printer upload <file>...` | プリンターを介さずにアップロードする |
-| `freee-printer status` | 設定とログイン状態を表示する |
+**印刷ダイアログに「freee」が出ない**
+freee-printer を起動した状態で `freee-printer install` を実行してください。
+ターミナルの問いに「n」と答えた場合や、自動起動のサービスだけで動かしている場合は、これで登録できます。
 
-`upload` は `serve` を動かしたままでも使える。
+**印刷したのにファイルボックスに入らない**
+状態ページ（`http://localhost:7933/`）のジョブ一覧に理由が出ます。
+よくあるのは次の 3 つです。
+
+- アップロード先の事業所が違う: 設定ページで事業所を切り替えてください。
+- freee への再ログインが必要: freee のトークンは 90 日で失効します。セットアップページからログインし直してください。
+- 一時的な通信エラー: 3 回まで自動で再試行します。駄目だった文書は状態ページに残るので、「送り直す」を押してください。
+
+**macOS で「開発元を検証できない」と言われる**
+署名をしていないためです。`xattr -d com.apple.quarantine <ファイル>` を実行するか、Finder で右クリックして「開く」を選んでください。
+
+**Windows で SmartScreen の警告が出る**
+同じく署名をしていないためです。「詳細情報」→「実行」で進めます。
+
+**ポート 7933 が使えないと言われる**
+別の freee-printer が動いています。自動起動を登録したあとに手でも起動した場合によく起きます。
+`freee-printer status` で状況を確認し、片方を止めてください。
+
+**やめたいとき**
+`freee-printer uninstall` でプリンターの登録を外し、`freee-printer service uninstall` で自動起動を外します。
+設定とトークンは `~/.config/freee/credentials`（Windows は `%APPDATA%\freee\credentials`）にあります。
+freee 側では、アプリ管理からアプリを削除すればトークンも無効になります。
+
+## 設定ページでできること
+
+`http://localhost:7933/` の各ページです。
+
+- **状態**: アップロード先の事業所、ジョブの一覧と失敗理由、アップロードできなかった文書の送り直しと削除。
+- **セットアップ**: freee へのログイン。別のアプリに切り替えることもできます。
+- **設定**: ログイン時の自動起動、印刷ダイアログに出る名前、書類の種類（領収書 / 請求書 / その他 / freee の OCR に任せる）、事業所の切り替え。
+
+セットアップと設定、送り直しは、このマシン（localhost）からの接続にだけ応じます。
+LAN に開けたとき（後述）に他の端末から見えるのは状態だけです。
 
 ## 他の端末から使う
-
-### LAN で共有する
 
 ```sh
 freee-printer serve --listen 0.0.0.0:7933 --advertise
 ```
 
-他の PC やスマートフォンのプリンター一覧に現れる。認証はないので、このアドレスに届く人は
-誰でもファイルボックスにアップロードできる。信頼できるネットワークでだけ使うこと。
+同じ LAN の PC やスマートフォンのプリンター一覧に「freee ファイルボックス」が現れます。
+認証はないので、このアドレスに届く人は誰でもファイルボックスにアップロードできます。
+信頼できるネットワークでだけ使ってください。
 
-## 設定
+## コマンド一覧
 
-状態は `~/.config/freee/credentials` に `KEY=値` の形で入る（場所は `freee-printer status` が表示する）。
-シェルスクリプトが `source` できる形式で、freee の API を使う他のツールと共有する前提である。
-トークンの更新はファイルロックの下で行い、更新後のトークンはその場で書き戻すので、
-同じファイルを読む他のツールは次の実行から新しいトークンを使う。
-ただし他のツールが同時にトークンを更新すると、どちらかの更新が失敗する（リフレッシュトークンは一度しか使えない）。
+| コマンド | 内容 |
+| --- | --- |
+| `freee-printer` | 起動する。未ログインならセットアップ画面を開く |
+| `freee-printer serve` | プリンターとして動かす（`--listen`、`--advertise` を指定するとき） |
+| `freee-printer install` / `uninstall` | この OS の印刷ダイアログにプリンター「freee」を登録する / 外す |
+| `freee-printer service install` / `service uninstall` | ログイン時の自動起動を登録する / 外す |
+| `freee-printer login` | freee へのログインをターミナルで行う |
+| `freee-printer company [ID]` | アップロード先の事業所を選び直す |
+| `freee-printer upload <file>...` | 印刷せずにファイルを直接アップロードする |
+| `freee-printer status` | 設定とログイン状態を表示する |
 
-freee の Client Secret とトークンを含むので、所有者だけが読める権限で保存される。
-次の項目は設定ページで変えられる（手で書いてもよい）。
+`upload` は、プリンターが動いている最中でも使えます。
+
+## 設定ファイル
+
+状態は `~/.config/freee/credentials` に `KEY=値` の形で入ります（Windows は `%APPDATA%\freee\credentials`、正確な場所は `freee-printer status` が表示します）。
+freee の Client Secret とトークンを含むので、所有者だけが読める権限で保存されます。
+
+このファイルは、シェルスクリプトが `source` できる形式にしてあり、freee の API を使う他のツールと共有できます。
+すでに `CLIENT_ID`、`CLIENT_SECRET`、`ACCESS_TOKEN`、`REFRESH_TOKEN`、`COMPANY_ID` が書かれていれば、そのまま使うので登録もログインも要りません。
+トークンの更新はファイルロックの下で行い、更新後のトークンはその場で書き戻します。
+ただし、他のツールが同時にトークンを更新すると、どちらかの更新が失敗します（freee のリフレッシュトークンは一度しか使えません）。
+
+設定ページで変えられる項目は、手で書いても構いません。
 
 | キー | 内容 |
 | --- | --- |
@@ -125,18 +187,16 @@ freee の Client Secret とトークンを含むので、所有者だけが読�
 | `pr_doc_type` | `receipt` / `invoice` / `other`。省略時は freee の OCR 任せ |
 | `COMPANY_NAME` | 表示用の事業所名 |
 
-## 失敗したとき
+## 制限
 
-アップロードできなかった文書は捨てずに保存され、状態ページから送り直せる（場所は `freee-printer status` に表示）。
-ジョブは「中止」として印刷元に報告され、理由は `serve` のログと状態ページに出る。
+- 部数、ページ範囲、両面などの印刷オプションは無視します。
+- ファイルボックスの上限により、1 ファイル 64 MB までです。
+- アップロードが始まったジョブは取り消せません。
+- iOS と Android からの印刷は試していません。
 
-- 一時的なエラー（5xx、429、通信断）は 3 回まで再試行する。
-- リフレッシュトークンは 90 日で失効する。失効したら `freee-printer login` をやり直す。
-- ファイルボックスの上限は 1 ファイル 64 MB。
-- 部数、ページ範囲、両面などの印刷オプションは無視する。
-- アップロードが始まったジョブは取り消せない。
+## 開発者向け
 
-## 検証状況
+### 検証状況
 
 確認済み:
 
@@ -150,14 +210,29 @@ freee の Client Secret とトークンを含むので、所有者だけが読�
 - Linux でモックサーバー相手に: `ipptool` の IPP 1.1 / 2.0 テスト、PDF・JPEG・ラスター、Create-Job + Send-Document、
   gzip、トークン更新、アップロードの再試行、失敗した文書の保存と送り直し、`serve` 実行中の `upload`。
 
-未確認:
+### 仕組み
 
-- iOS と Android からの印刷。
-- freee の Web 画面での OCR 結果の見え方。
+IPP Everywhere のプリンターとして振る舞い、受け取った文書を `POST /api/1/receipts` でアップロードします。
 
-## 構成
+```text
+印刷する端末 ──IPP──▶ freee-printer ──HTTPS──▶ freee ファイルボックス
+```
+
+| 受け取る形式 | アップロードされる形式 |
+| --- | --- |
+| PDF | そのまま |
+| JPEG / PNG | そのまま |
+| PWG Raster / Apple Raster (URF) | 1 ページ 1 画像の PDF に変換（300 dpi） |
+
+### 構成
 
 | パス | 役割 |
 | --- | --- |
-| `crates/core` | プリンター本体。IPP、HTTP/1.1、ラスター変換、freee API、ログイン手順。スレッドとブロッキング I/O だけで書いてあり、通信と保存は trait 越しなので、専用ハードウェアのファームウェアにも載せられる作りにしてある。 |
+| `crates/core` | プリンター本体。IPP、HTTP/1.1、ラスター変換、freee API、Web ページ、ログイン手順。スレッドとブロッキング I/O だけで書いてあり、通信と保存は trait 越しなので、専用ハードウェアのファームウェアにも載せられる作りにしてある。 |
 | `cli` | Linux / macOS / Windows 用のコマンド。rustls の TLS、認証情報ファイル、DNS-SD、OS への登録。 |
+
+```sh
+cargo run                # 開発中の起動
+cargo test               # テスト
+cargo install --path cli # 手元に入れる
+```
